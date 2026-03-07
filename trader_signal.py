@@ -91,8 +91,8 @@ def get_signal_key(symbol_code: str) -> str:
 
 # ============== 天勤数据 ==============
 
-def get_kline_from_tqsdk(symbol: str, duration: int = 60, count: int = 100) -> Optional[Dict]:
-    """天勤数据"""
+def get_kline_from_tqsdk(symbol: str, duration: int = 300, count: int = 100) -> Optional[Dict]:
+    """天勤数据 - 5分钟K线"""
     try:
         from tqsdk import TqApi, TqAuth
         
@@ -161,7 +161,7 @@ def get_kline_data(symbol: str, count: int = 100) -> Dict:
     symbol_name = symbol.split('.')[0]
     
     # 优先天勤
-    data = get_kline_from_tqsdk(symbol, 60, count)
+    data = get_kline_from_tqsdk(symbol, 300, count)  # 5分钟 = 300秒
     if data:
         print(f"✅ 天勤数据: {symbol}")
         return data
