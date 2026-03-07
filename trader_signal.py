@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
 """
 期货信号系统 - 天勤数据源
-可部署到GitHub Actions
 """
 
 import json
-import sys
-import sys
 import os
-import time
+import sys
 import urllib.request
 import urllib.parse
 import random
@@ -16,63 +13,74 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 # ============== 配置区 ==============
-# 天勤账号密码 (推荐使用账号密码登录，更稳定)
-TQ_ACCOUNT = "15572009997"  # 你的天勤账号
-TQ_PASSWORD = "zp123789"  # 你的天勤密码
+# 天勤账号密码
+TQ_ACCOUNT = "15572009997"
+TQ_PASSWORD = "zp123789"
 
 # 交易品种
-# 天勤账号密码 (推荐使用账号密码登录，更稳定)
-TQ_ACCOUNT = "15572009997"  # 你的天勤账号
-TQ_PASSWORD = "zp123789"  # 你的天勤密码
-
-# 交易品种
-# 飞书 Webhook 地址 (获取方式：群机器人 -> 自定义机器人 -> Webhook)
-FEISHU_WEBHOOK_URL = "YOUR_FEISHU_WEBHOOK_URL"
-
-# 天勤 Token (可选，不填也能用游客权限)
-TQ_TOKEN = ""
-
-# 交易品种 (天勤期货合约代码)
 SYMBOLS = [
-    {"code": "TA2209.CZCE", "name": "PTA", "exchange": "CZCE"},
-    {"code": "OI2209.CZCE", "name": "菜籽油", "exchange": "CZCE"},
-    {"code": "V2209.CZCE", "name": "PVC", "exchange": "CZCE"},
-    {"code": "P2209.DCE", "name": "棕榈油", "exchange": "DCE"},
+    {"code": "TA2605.CZCE", "name": "PTA", "exchange": "CZCE"},
+    {"code": "OI2605.CZCE", "name": "菜籽油", "exchange": "CZCE"},
+    {"code": "V2605.CZCE", "name": "PVC", "exchange": "CZCE"},
+    {"code": "P2605.DCE", "name": "棕榈油", "exchange": "DCE"},
 ]
 
-# 状态文件
+# 飞书配置
+APP_ID = "cli_a920fdf0183a9bd1"
+APP_SECRET = "yjoGDTFVobSRRrEzLx81JhGl7NWvBrrG"
+RECEIVER_ID = "ou_39144282ce2b237a8f95c7c9a30037bf"
+
 STATE_FILE = "signal_state.json"
 
-# ============== 飞书推送 ==============
+# ============== 飞书 ==============
+_feishu_access_token = None
 
-def send_feishu_message(message: str) -> bool:
-    """推送到飞书"""
-    if not FEISHU_WEBHOOK_URL or FEISHU_WEBHOOK_URL == "YOUR_FEISHU_WEBHOOK_URL":
-        print("请先配置 FEISHU_WEBHOOK_URL")
-        return False
+def get_feishu_access_token() -> Optional[str]:
+    global _feishu_access_token
+    if _feishu_access_token:
+        return _feishu_access_token
     
-    payload = {"msg_type": "text", "content": message}
+    url = "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal"
+    payload = {"app_id": APP_ID, "app_secret": APP_SECRET}
     
     try:
         data = json.dumps(payload).encode('utf-8')
-        req = urllib.request.Request(
-            FEISHU_WEBHOOK_URL,
-            data=data,
-            headers={'Content-Type': 'application/json'}
-        )
+        req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
         with urllib.request.urlopen(req, timeout=10) as response:
             result = json.loads(response.read().decode())
             if result.get('code') == 0:
-                print("✅ 飞书推送成功")
+                _feishu_access_token = result['tenant_access_token']
+                return _feishu_access_token
+    except Exception as e:
+        print(f"获取token失败: {e}")
+    return None
+
+def send_feishu_message(open_id: str, message: str) -> bool:
+    token = get_feishu_access_token()
+    if not token:
+        return False
+    
+    url = "https://open.feishu.cn/open-apis/im/v1/messages"
+    params = {"receive_id_type": "open_id"}
+    payload = {"receive_id": open_id, "msg_type": "text", "content": json.dumps({"text": message})}
+    
+    try:
+        query_string = urllib.parse.urlencode(params)
+        full_url = f"{url}?{query_string}"
+        data = json.dumps(payload).encode('utf-8')
+        req = urllib.request.Request(full_url, data=data, headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {token}'})
+        with urllib.request.urlopen(req, timeout=10) as response:
+            result = json.loads(response.read().decode())
+            if result.get('code') == 0:
+                print("✅ 飞书消息发送成功")
                 return True
             else:
-                print(f"❌ 推送失败: {result.get('msg')}")
+                print(f"❌ 发送失败: {result.get('msg')}")
     except Exception as e:
-        print(f"❌ 推送失败: {e}")
+        print(f"❌ 发送失败: {e}")
     return False
 
 # ============== 状态管理 ==============
-
 def load_state() -> Dict:
     if os.path.exists(STATE_FILE):
         try:
@@ -90,13 +98,16 @@ def get_signal_key(symbol_code: str) -> str:
     return symbol_code.split('.')[0]
 
 # ============== 天勤数据 ==============
-
 def get_kline_from_tqsdk(symbol: str, duration: int = 300, count: int = 100) -> Optional[Dict]:
-    """天勤数据 - 5分钟K线"""
+    """天勤数据"""
     try:
         from tqsdk import TqApi, TqAuth
         
-        # 使用账号密码登录，如果失败则用游客
+        # 转换合约代码
+        tqsdk_symbol = symbol.replace('.CZCE', '').replace('.DCE', '').replace('.SHFE', '').replace('.CFFEX', '')
+        
+        print(f"正在连接天勤...")
+        
         try:
             if TQ_ACCOUNT and TQ_PASSWORD:
                 print(f"尝试使用账号登录天勤: {TQ_ACCOUNT}")
@@ -107,44 +118,46 @@ def get_kline_from_tqsdk(symbol: str, duration: int = 300, count: int = 100) -> 
             print(f"账号登录失败，使用游客: {auth_error}")
             api = TqApi()
         
+        print(f"天勤连接成功, 获取{tqsdk_symbol}数据...")
+        
         try:
-            klines = api.get_kline_serial(symbol, duration, count)
+            klines = api.get_kline_serial(tqsdk_symbol, duration, count)
             prices = klines['close'].tolist()
             volumes = klines['volume'].tolist()
             api.close()
             
-            return {
-                "symbol": symbol,
-                "prices": prices,
-                "volumes": volumes,
-                "source": "tqsdk"
-            }
-        except:
+            print(f"获取到{len(prices)}条K线数据")
+            
+            if len(prices) == 0:
+                print(f"尝试获取日K数据...")
+                api2 = TqApi()
+                klines2 = api2.get_kline_serial(tqsdk_symbol, 86400, 30)
+                prices2 = klines2['close'].tolist()
+                volumes2 = klines2['volume'].tolist()
+                api2.close()
+                return {"symbol": symbol, "prices": prices2, "volumes": volumes2, "source": "tqsdk_daily"}
+            
+            return {"symbol": symbol, "prices": prices, "volumes": volumes, "source": "tqsdk"}
+        except Exception as e:
             api.close()
+            print(f"获取K线失败: {e}")
     except ImportError:
         print("天勤SDK未安装")
     except Exception as e:
         print(f"天勤错误: {e}")
     return None
 
-# ============== 天勤数据 ==============
-
 def get_kline_data(symbol: str, count: int = 100) -> Dict:
-    """获取K线数据 - 只使用天勤"""
-    symbol_name = symbol.split('.')[0]
-    
-    # 只使用天勤
-    data = get_kline_from_tqsdk(symbol, 300, count)  # 5分钟 = 300秒
+    """获取K线数据"""
+    data = get_kline_from_tqsdk(symbol, 300, count)
     if data:
         print(f"✅ 天勤数据: {symbol}")
         return data
     
-    # 天勤失败则报错退出
     print(f"❌ 天勤数据获取失败: {symbol}")
     exit(1)
 
 # ============== 技术指标 ==============
-
 def calculate_ma(data: List[float], period: int) -> List[float]:
     result = []
     for i in range(len(data)):
@@ -187,36 +200,82 @@ def calculate_rsi(data: List[float], period: int = 14) -> List[float]:
             result.append(round(rsi, 2))
     return result
 
-# ============== 信号检测 ==============
+def calculate_atr(prices: List[float], period: int = 14) -> List[float]:
+    if len(prices) < period + 1:
+        return [None] * len(prices)
+    
+    tr = []
+    for i in range(1, len(prices)):
+        h_l = prices[i] - prices[i-1]
+        h_c = abs(prices[i] - prices[i-1])
+        l_c = abs(prices[i-1] - prices[i-1])
+        tr.append(max(h_l, h_c, l_c))
+    
+    atr = []
+    for i in range(len(tr)):
+        if i < period - 1:
+            atr.append(None)
+        else:
+            avg = sum(tr[i-period+1:i+1]) / period
+            atr.append(round(avg, 2))
+    return atr
 
+# ============== 信号检测 ==============
 def detect_signals(prices: List[float], volumes: List[float]) -> Optional[Dict]:
-    if len(prices) < 25:
+    if len(prices) < 30:
         return None
     
-    ma5, ma20 = calculate_ma(prices, 5), calculate_ma(prices, 20)
+    ma5 = calculate_ma(prices, 5)
+    ma20 = calculate_ma(prices, 20)
+    ma60 = calculate_ma(prices, 60)
     bb = calculate_bollinger(prices)
     rsi = calculate_rsi(prices)
+    atr = calculate_atr(prices)
     
-    price, ma5_v, ma20_v, bb_m, rsi_v = prices[-1], ma5[-1], ma20[-1], bb["middle"][-1], rsi[-1]
+    price = prices[-1]
+    ma5_v, ma20_v, ma60_v = ma5[-1], ma20[-1], ma60[-1] if len(ma60) > 0 and ma60[-1] else None
+    bb_m = bb["middle"][-1]
+    rsi_v = rsi[-1]
+    atr_v = atr[-1] if atr and atr[-1] else 0
     
     if None in [ma5_v, ma20_v, bb_m, rsi_v]:
         return None
     
-    # 多头
-    if price > ma20_v and ma5_v > ma20_v and bb_m > bb["middle"][-2] and 40 < rsi_v < 70:
-        return {"type": "LONG", "reason": "均线多头+布林中轨向上+RSI", "price": price}
-    # 空头
-    if price < ma20_v and ma5_v < ma20_v and bb_m < bb["middle"][-2] and 30 < rsi_v < 60:
-        return {"type": "SHORT", "reason": "均线空头+布林中轨向下+RSI", "price": price}
-    # 突破
-    if bb["upper"][-1] and price > bb["upper"][-1] and volumes[-1] > volumes[-2] * 1.5:
-        return {"type": "LONG", "reason": "突破布林上轨+放量", "price": price}
-    if bb["lower"][-1] and price < bb["lower"][-1] and volumes[-1] > volumes[-2] * 1.5:
-        return {"type": "SHORT", "reason": "跌破布林下轨+放量", "price": price}
+    # 做多
+    long_cond1 = (price > ma20_v and ma5_v > ma20_v and bb_m > bb["middle"][-2] and 35 < rsi_v < 75)
+    long_cond2 = (bb["upper"][-1] and price > bb["upper"][-1] and volumes[-1] > volumes[-2] * 1.3 and (price - bb["upper"][-1]) > atr_v * 0.3)
+    
+    if long_cond1 or long_cond2:
+        reason = "均线多头+布林中轨向上+RSI" if long_cond1 else f"突破布林上轨+放量(ATR:{atr_v})"
+        return {"type": "LONG", "reason": reason, "price": price}
+    
+    # 做空
+    short_cond1 = (price < ma20_v and ma5_v < ma20_v and bb_m < bb["middle"][-2] and 25 < rsi_v < 65)
+    short_cond2 = (bb["lower"][-1] and price < bb["lower"][-1] and volumes[-1] > volumes[-2] * 1.3 and (bb["lower"][-1] - price) > atr_v * 0.3)
+    
+    if short_cond1 or short_cond2:
+        reason = "均线空头+布林中轨向下+RSI" if short_cond1 else f"跌破布林下轨+放量(ATR:{atr_v})"
+        return {"type": "SHORT", "reason": reason, "price": price}
     
     return None
 
 # ============== 主程序 ==============
+def send_signal(symbol: Dict, signal: Dict):
+    emoji = "🔴" if signal["type"] == "LONG" else "🟢"
+    direction = "做多" if signal["type"] == "LONG" else "做空"
+    
+    code = symbol["code"]
+    contract_month = code.split('.')[0][-4:]
+    
+    message = f"""【期货信号】
+
+{emoji} {symbol['name']}{contract_month} {direction}
+
+原因: {signal['reason']}
+价格: {signal['price']}
+时间: {datetime.now().strftime('%Y-%m-%d %H:%M')}"""
+    
+    send_feishu_message(RECEIVER_ID, message)
 
 def main():
     print("="*50)
@@ -240,17 +299,8 @@ def main():
         previous = prev_state.get(key, "NONE")
         
         if signal and current != previous:
-            emoji = "🔴" if current == "LONG" else "🟢"
-            direction = "做多" if current == "LONG" else "做空"
-            
-            msg = f"""【期货信号】{emoji} {name} {direction}
-
-原因: {signal['reason']}
-价格: {signal['price']}
-时间: {datetime.now().strftime('%Y-%m-%d %H:%M')}"""
-            
             print(f"📢 新信号: {current}")
-            send_feishu_message(msg)
+            send_signal(symbol, signal)
         elif signal:
             print(f"📊 保持: {current}")
         else:
