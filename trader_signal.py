@@ -96,10 +96,15 @@ def get_kline_from_tqsdk(symbol: str, duration: int = 60, count: int = 100) -> O
     try:
         from tqsdk import TqApi, TqAuth
         
-        # 使用账号密码登录，如果没填则用游客
-        if TQ_ACCOUNT and TQ_PASSWORD:
-            api = TqApi(auth=TqAuth(TQ_ACCOUNT, TQ_PASSWORD))
-        else:
+        # 使用账号密码登录，如果失败则用游客
+        try:
+            if TQ_ACCOUNT and TQ_PASSWORD:
+                print(f"尝试使用账号登录天勤: {TQ_ACCOUNT}")
+                api = TqApi(auth=TqAuth(TQ_ACCOUNT, TQ_PASSWORD))
+            else:
+                api = TqApi()
+        except Exception as auth_error:
+            print(f"账号登录失败，使用游客: {auth_error}")
             api = TqApi()
         
         try:
