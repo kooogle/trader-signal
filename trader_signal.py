@@ -122,9 +122,13 @@ def get_kline_from_tqsdk(symbol: str, duration: int = 300, count: int = 100) -> 
         
         try:
             klines = api.get_kline_serial(tqsdk_symbol, duration, count)
-            prices = klines['close'].tolist()
-            volumes = klines['volume'].tolist()
-            api.close()
+            close_series = klines.get('close')
+            if close_series is None:
+                print("K线数据为空")
+                api.close()
+                return None
+            prices = close_series.tolist()
+            volumes = klines.get('volume', []).tolist() if klines.get('volume') is not None else []
             
             print(f"获取到{len(prices)}条K线数据")
             
@@ -132,8 +136,10 @@ def get_kline_from_tqsdk(symbol: str, duration: int = 300, count: int = 100) -> 
                 print(f"尝试获取日K数据...")
                 api2 = TqApi()
                 klines2 = api2.get_kline_serial(tqsdk_symbol, 86400, 30)
-                prices2 = klines2['close'].tolist()
-                volumes2 = klines2['volume'].tolist()
+                close2 = klines2.get('close')
+                vol2 = klines2.get('volume')
+                prices2 = close2.tolist() if close2 is not None else []
+                volumes2 = vol2.tolist() if vol2 is not None else []
                 api2.close()
                 return {"symbol": symbol, "prices": prices2, "volumes": volumes2, "source": "tqsdk_daily"}
             
