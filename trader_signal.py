@@ -14,6 +14,16 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 # ============== 配置区 ==============
+# 天勤账号密码 (推荐使用账号密码登录，更稳定)
+TQ_ACCOUNT = ""  # 你的天勤账号
+TQ_PASSWORD = ""  # 你的天勤密码
+
+# 交易品种
+# 天勤账号密码 (推荐使用账号密码登录，更稳定)
+TQ_ACCOUNT = ""  # 你的天勤账号
+TQ_PASSWORD = ""  # 你的天勤密码
+
+# 交易品种
 # 飞书 Webhook 地址 (获取方式：群机器人 -> 自定义机器人 -> Webhook)
 FEISHU_WEBHOOK_URL = "YOUR_FEISHU_WEBHOOK_URL"
 
@@ -84,8 +94,9 @@ def get_kline_from_tqsdk(symbol: str, duration: int = 60, count: int = 100) -> O
     try:
         from tqsdk import TqApi, TqAuth
         
-        if TQ_TOKEN:
-            api = TqApi(auth=TqAuth(TQ_TOKEN, ""))
+        # 使用账号密码登录，如果没填则用游客
+        if TQ_ACCOUNT and TQ_PASSWORD:
+            api = TqApi(auth=TqAuth(TQ_ACCOUNT, TQ_PASSWORD))
         else:
             api = TqApi()
         
