@@ -207,9 +207,9 @@ def get_kline_from_tqsdk(symbol: str, duration: int = 300, count: int = 100) -> 
     return None
 
 def get_kline_data(symbol: str, count: int = 100) -> Dict:
-    """获取K线数据 - 使用日K线"""
-    # 直接获取日K
-    data = get_kline_from_tqsdk(symbol, 86400, 30)  # 日K，30天
+    """获取K线数据 - 使用5分钟K线"""
+    # 获取5分钟K线
+    data = get_kline_from_tqsdk(symbol, 300, 30)  # 5分钟，30根
     if data:
         print(f"✅ 天勤日K数据: {symbol}")
         return data
