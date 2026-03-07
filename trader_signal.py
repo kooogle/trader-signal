@@ -102,15 +102,19 @@ def get_kline_from_tqsdk(symbol: str, duration: int = 60, count: int = 100) -> O
     """天勤数据"""
     try:
         from tqsdk import TqApi, TqAuth
+        print(f"正在连接天勤...")
         api = TqApi(auth=TqAuth("", ""))
+        print(f"天勤连接成功, 获取{symbol}数据...")
         try:
             klines = api.get_kline_serial(symbol, duration, count)
             prices = klines['close'].tolist()
             volumes = klines['volume'].tolist()
             api.close()
+            print(f"获取到{len(prices)}条数据")
             return {"symbol": symbol, "prices": prices, "volumes": volumes, "source": "tqsdk"}
-        except:
+        except Exception as e:
             api.close()
+            print(f"获取K线失败: {e}")
     except ImportError:
         print("天勤SDK未安装")
     except Exception as e:
