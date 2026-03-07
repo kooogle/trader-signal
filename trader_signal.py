@@ -15,13 +15,13 @@ from typing import Dict, List, Optional
 
 # ============== 配置区 ==============
 # 天勤账号密码 (推荐使用账号密码登录，更稳定)
-TQ_ACCOUNT = ""  # 你的天勤账号
-TQ_PASSWORD = ""  # 你的天勤密码
+TQ_ACCOUNT = "15572009997"  # 你的天勤账号
+TQ_PASSWORD = "zpzp123789"  # 你的天勤密码
 
 # 交易品种
 # 天勤账号密码 (推荐使用账号密码登录，更稳定)
-TQ_ACCOUNT = ""  # 你的天勤账号
-TQ_PASSWORD = ""  # 你的天勤密码
+TQ_ACCOUNT = "15572009997"  # 你的天勤账号
+TQ_PASSWORD = "zpzp123789"  # 你的天勤密码
 
 # 交易品种
 # 飞书 Webhook 地址 (获取方式：群机器人 -> 自定义机器人 -> Webhook)
