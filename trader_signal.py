@@ -207,14 +207,14 @@ def get_kline_from_tqsdk(symbol: str, duration: int = 300, count: int = 100) -> 
     return None
 
 def get_kline_data(symbol: str, count: int = 100) -> Dict:
-    """获取K线数据 - 失败返回空数据"""
-    data = get_kline_from_tqsdk(symbol, 300, count)
+    """获取K线数据 - 使用日K线"""
+    # 直接获取日K
+    data = get_kline_from_tqsdk(symbol, 86400, 30)  # 日K，30天
     if data:
-        print(f"✅ 天勤数据: {symbol}")
+        print(f"✅ 天勤日K数据: {symbol}")
         return data
     
     print(f"⚠️ 天勤数据获取失败: {symbol}")
-    # 返回空数据，不退出
     return {"symbol": symbol, "prices": [], "volumes": [], "source": "failed"}
 
 # ============== 技术指标 ==============
