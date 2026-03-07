@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-期货信号系统 - 独立运行版
-支持天勤/新浪数据源，可部署到GitHub Actions或服务器
+期货信号系统 - 天勤数据源
+可部署到GitHub Actions
 """
 
 import json
@@ -127,34 +127,7 @@ def get_kline_from_tqsdk(symbol: str, duration: int = 300, count: int = 100) -> 
         print(f"天勤错误: {e}")
     return None
 
-# ============== 新浪数据 ==============
-
-def get_kline_from_sina(symbol_name: str, count: int = 50) -> Optional[Dict]:
-    """新浪数据"""
-    # 新浪期货合约代码 - 使用具体合约代码
-    symbol_map = {
-        "TA2605": "TA605",   # PTA2605
-        "OI2605": "OI605",  # 菜籽油2605
-        "V2605": "V605",    # PVC2605
-        "P2605": "P605"     # 棕榈油2605
-    }
-    sina_code = symbol_map.get(symbol_name, symbol_name)
-    
-    url = f"https://stock2.finance.sina.com.cn/futures/api/json.php/IndexService.getInnerFuturesDailyKLine"
-    
-    try:
-        full_url = f"{url}?symbol={sina_code}"
-        req = urllib.request.Request(full_url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=15) as response:
-            result = json.loads(response.read().decode('utf-8'))
-            if result:
-                data = result[-count:] if len(result) > count else result
-                prices = [float(d[2]) for d in data]
-                volumes = [float(d[5]) for d in data]
-                return {"symbol": symbol_name, "prices": prices, "volumes": volumes, "source": "sina"}
-    except Exception as e:
-        print(f"新浪错误: {e}")
-    return None
+# ============== 天勤数据 ==============
 
 def get_kline_data(symbol: str, count: int = 100) -> Dict:
     """获取K线数据"""
@@ -166,11 +139,6 @@ def get_kline_data(symbol: str, count: int = 100) -> Dict:
         print(f"✅ 天勤数据: {symbol}")
         return data
     
-    # 备选新浪
-    data = get_kline_from_sina(symbol_name, count)
-    if data:
-        print(f"✅ 新浪数据: {symbol}")
-        return data
     
     # 模拟
     print(f"⚠️ 模拟数据: {symbol}")
