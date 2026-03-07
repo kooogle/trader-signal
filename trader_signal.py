@@ -6,6 +6,7 @@
 
 import json
 import sys
+import sys
 import os
 import time
 import urllib.request
@@ -47,7 +48,7 @@ STATE_FILE = "signal_state.json"
 def send_feishu_message(message: str) -> bool:
     """推送到飞书"""
     if not FEISHU_WEBHOOK_URL or FEISHU_WEBHOOK_URL == "YOUR_FEISHU_WEBHOOK_URL":
-        print("请先配置 FEISHU_WEBHOOK_URL"); import sys; sys.stdout.flush()
+        print("请先配置 FEISHU_WEBHOOK_URL")
         return False
     
     payload = {"msg_type": "text", "content": message}
@@ -62,12 +63,12 @@ def send_feishu_message(message: str) -> bool:
         with urllib.request.urlopen(req, timeout=10) as response:
             result = json.loads(response.read().decode())
             if result.get('code') == 0:
-                print("✅ 飞书推送成功"); import sys; sys.stdout.flush()
+                print("✅ 飞书推送成功")
                 return True
             else:
-                print(f"❌ 推送失败: {result.get('msg'); import sys; sys.stdout.flush()}")
+                print(f"❌ 推送失败: {result.get('msg')}")
     except Exception as e:
-        print(f"❌ 推送失败: {e}"); import sys; sys.stdout.flush()
+        print(f"❌ 推送失败: {e}")
     return False
 
 # ============== 状态管理 ==============
@@ -116,9 +117,9 @@ def get_kline_from_tqsdk(symbol: str, duration: int = 60, count: int = 100) -> O
         except:
             api.close()
     except ImportError:
-        print("天勤SDK未安装"); import sys; sys.stdout.flush()
+        print("天勤SDK未安装")
     except Exception as e:
-        print(f"天勤错误: {e}"); import sys; sys.stdout.flush()
+        print(f"天勤错误: {e}")
     return None
 
 # ============== 新浪数据 ==============
@@ -141,7 +142,7 @@ def get_kline_from_sina(symbol_name: str, count: int = 50) -> Optional[Dict]:
                 volumes = [float(d[5]) for d in data]
                 return {"symbol": symbol_name, "prices": prices, "volumes": volumes, "source": "sina"}
     except Exception as e:
-        print(f"新浪错误: {e}"); import sys; sys.stdout.flush()
+        print(f"新浪错误: {e}")
     return None
 
 def get_kline_data(symbol: str, count: int = 100) -> Dict:
@@ -151,17 +152,17 @@ def get_kline_data(symbol: str, count: int = 100) -> Dict:
     # 优先天勤
     data = get_kline_from_tqsdk(symbol, 60, count)
     if data:
-        print(f"✅ 天勤数据: {symbol}"); import sys; sys.stdout.flush()
+        print(f"✅ 天勤数据: {symbol}")
         return data
     
     # 备选新浪
     data = get_kline_from_sina(symbol_name, count)
     if data:
-        print(f"✅ 新浪数据: {symbol}"); import sys; sys.stdout.flush()
+        print(f"✅ 新浪数据: {symbol}")
         return data
     
     # 模拟
-    print(f"⚠️ 模拟数据: {symbol}"); import sys; sys.stdout.flush()
+    print(f"⚠️ 模拟数据: {symbol}")
     prices = [5000 + random.uniform(-100, 100) for _ in range(count)]
     volumes = [random.randint(10000, 50000) for _ in range(count)]
     return {"symbol": symbol, "prices": prices, "volumes": volumes, "source": "mock"}
@@ -242,9 +243,9 @@ def detect_signals(prices: List[float], volumes: List[float]) -> Optional[Dict]:
 # ============== 主程序 ==============
 
 def main():
-    print("="*50); import sys; sys.stdout.flush()
-    print("期货信号系统"); import sys; sys.stdout.flush()
-    print("="*50); import sys; sys.stdout.flush()
+    print("="*50)
+    print("期货信号系统")
+    print("="*50)
     
     prev_state = load_state()
     current_state = {}
@@ -254,7 +255,7 @@ def main():
         name = symbol["name"]
         key = get_signal_key(code)
         
-        print(f"\n分析: {name}"); import sys; sys.stdout.flush()
+        print(f"\n分析: {name}")
         
         data = get_kline_data(code)
         signal = detect_signals(data["prices"], data["volumes"])
@@ -272,17 +273,17 @@ def main():
 价格: {signal['price']}
 时间: {datetime.now().strftime('%Y-%m-%d %H:%M')}"""
             
-            print(f"📢 新信号: {current}"); import sys; sys.stdout.flush()
+            print(f"📢 新信号: {current}")
             send_feishu_message(msg)
         elif signal:
-            print(f"📊 保持: {current}"); import sys; sys.stdout.flush()
+            print(f"📊 保持: {current}")
         else:
-            print("无信号"); import sys; sys.stdout.flush()
+            print("无信号")
         
         current_state[key] = current
     
     save_state(current_state)
-    print("\n完成!"); import sys; sys.stdout.flush()
+    print("\n完成!")
 
 if __name__ == "__main__":
     main()
