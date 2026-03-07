@@ -31,6 +31,7 @@ APP_SECRET = "yjoGDTFVobSRRrEzLx81JhGl7NWvBrrG"
 RECEIVER_ID = "ou_39144282ce2b237a8f95c7c9a30037bf"
 
 STATE_FILE = "signal_state.json"
+HISTORY_FILE = "signal_history.json"
 
 # ============== 飞书 ==============
 _feishu_access_token = None
@@ -93,6 +94,38 @@ def load_state() -> Dict:
 def save_state(state: Dict):
     with open(STATE_FILE, 'w') as f:
         json.dump(state, f)
+
+def load_history() -> Dict:
+    if os.path.exists(HISTORY_FILE):
+        try:
+            with open(HISTORY_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            pass
+    return {"signals": []}
+
+def save_history(history: Dict):
+    with open(HISTORY_FILE, 'w') as f:
+        json.dump(history, f)
+
+def add_history(symbol: Dict, signal: Dict):
+    history = load_history()
+    code = symbol["code"]
+    contract_month = code.split('.')[0][-4:]
+    
+    history["signals"].append({
+        "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "symbol": f"{symbol['name']}{contract_month}",
+        "type": signal["type"],
+        "reason": signal["reason"],
+        "price": signal["price"]
+    })
+    
+    # 只保留最近100条
+    if len(history["signals"]) > 100:
+        history["signals"] = history["signals"][-100:]
+    
+    save_history(history)
 
 def get_signal_key(symbol_code: str) -> str:
     return symbol_code.split('.')[0]
@@ -307,6 +340,7 @@ def main():
         if signal and current != previous:
             print(f"📢 新信号: {current}")
             send_signal(symbol, signal)
+            add_history(symbol, signal)  # 记录历史
         elif signal:
             print(f"📊 保持: {current}")
         else:
