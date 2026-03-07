@@ -17,12 +17,12 @@ from typing import Dict, List, Optional
 TQ_ACCOUNT = "15572009997"
 TQ_PASSWORD = "zp123789"
 
-# 交易品种 - 天勤正确合约代码
+# 交易品种 - 天勤主力合约
 SYMBOLS = [
-    {"code": "TA2605", "name": "PTA", "exchange": "CZCE"},
-    {"code": "OI2605", "name": "菜籽油", "exchange": "CZCE"},
-    {"code": "P2605", "name": "棕榈油", "exchange": "DCE"},
-    {"code": "V2605", "name": "PVC", "exchange": "DCE"},
+    {"code": "TA99", "name": "PTA", "exchange": "CZCE"},
+    {"code": "OI99", "name": "菜籽油", "exchange": "CZCE"},
+    {"code": "P99", "name": "棕榈油", "exchange": "DCE"},
+    {"code": "V99", "name": "PVC", "exchange": "DCE"},
 ]
 
 # 飞书配置
