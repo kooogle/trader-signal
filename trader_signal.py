@@ -320,9 +320,13 @@ def send_signal(symbol: Dict, signal: Dict):
     emoji = "🔴" if signal["type"] == "LONG" else "🟢"
     direction = "做多" if signal["type"] == "LONG" else "做空"
     
+    # 提取合约年月 (如 TA2605 -> 2605)
+    code = symbol["code"]
+    contract_month = code.split('.')[0][-4:]  # 取最后4位
+    
     message = f"""【期货信号】
 
-{emoji} {symbol['name']} {direction}
+{emoji} {symbol['name']}{contract_month} {direction}
 
 原因: {signal['reason']}
 价格: {signal['price']}
