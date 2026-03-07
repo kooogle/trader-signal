@@ -105,8 +105,11 @@ def load_history() -> Dict:
     return {"signals": []}
 
 def save_history(history: Dict):
-    with open(HISTORY_FILE, 'w') as f:
-        json.dump(history, f)
+    try:
+        with open(HISTORY_FILE, 'w') as f:
+            json.dump(history, f)
+    except Exception as e:
+        print(f"保存历史记录失败: {e}")
 
 def add_history(symbol: Dict, signal: Dict):
     history = load_history()
