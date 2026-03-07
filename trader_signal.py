@@ -17,12 +17,13 @@ from typing import Dict, List, Optional
 TQ_ACCOUNT = "15572009997"
 TQ_PASSWORD = "zp123789"
 
-# 交易品种
+# 交易品种 - 使用正确的天勤合约代码
+# 合约代码格式: 商品名+到期月份
 SYMBOLS = [
-    {"code": "TA2605.CZCE", "name": "PTA", "exchange": "CZCE"},
-    {"code": "OI2605.CZCE", "name": "菜籽油", "exchange": "CZCE"},
-    {"code": "V2605.CZCE", "name": "PVC", "exchange": "CZCE"},
-    {"code": "P2605.DCE", "name": "棕榈油", "exchange": "DCE"},
+    {"code": "TA2605", "name": "PTA", "exchange": "CZCE"},
+    {"code": "OI2605", "name": "菜籽油", "exchange": "CZCE"},
+    {"code": "V2605", "name": "PVC", "exchange": "CZCE"},
+    {"code": "P2605", "name": "棕榈油", "exchange": "DCE"},
 ]
 
 # 飞书配置
@@ -138,51 +139,68 @@ def get_kline_from_tqsdk(symbol: str, duration: int = 300, count: int = 100) -> 
     """天勤数据"""
     try:
         from tqsdk import TqApi, TqAuth
+        import time
         
-        # 转换合约代码
-        tqsdk_symbol = symbol.replace('.CZCE', '').replace('.DCE', '').replace('.SHFE', '').replace('.CFFEX', '')
+        # 合约代码直接使用
+        tqsdk_symbol = symbol
         
         print(f"正在连接天勤...")
         
         try:
             if TQ_ACCOUNT and TQ_PASSWORD:
-                print(f"尝试使用账号登录天勤: {TQ_ACCOUNT}")
-                api = TqApi(auth=TqAuth(TQ_ACCOUNT, TQ_PASSWORD))
+                print(f"使用账号登录: {TQ_ACCOUNT}")
+                api = TqApi(auth=TqAuth(TQ_ACCOUNT, TQ_PASSWORD), timeout=30)
             else:
-                api = TqApi()
+                api = TqApi(timeout=30)
         except Exception as auth_error:
-            print(f"账号登录失败，使用游客: {auth_error}")
-            api = TqApi()
+            print(f"账号登录失败: {auth_error}")
+            try:
+                api = TqApi(timeout=30)
+            except Exception as e:
+                print(f"游客登录也失败: {e}")
+                return None
         
         print(f"天勤连接成功, 获取{tqsdk_symbol}数据...")
+        time.sleep(1)  # 等待连接稳定
         
         try:
+            print(f"请求K线数据: {tqsdk_symbol}, duration={duration}")
             klines = api.get_kline_serial(tqsdk_symbol, duration, count)
+            
             close_series = klines.get('close')
             if close_series is None:
-                print("K线数据为空")
+                print("K线close数据为空，尝试获取日K...")
                 api.close()
-                return None
+                # 尝试日K
+                try:
+                    api2 = TqApi(timeout=30)
+                    klines2 = api2.get_kline_serial(tqsdk_symbol, 86400, 30)
+                    close2 = klines2.get('close')
+                    vol2 = klines2.get('volume')
+                    prices2 = close2.tolist() if close2 is not None else []
+                    volumes2 = vol2.tolist() if vol2 is not None else []
+                    api2.close()
+                    print(f"日K获取到{len(prices2)}条数据")
+                    return {"symbol": symbol, "prices": prices2, "volumes": volumes2, "source": "tqsdk_daily"}
+                except Exception as e2:
+                    print(f"日K也失败: {e2}")
+                    return None
+            
             prices = close_series.tolist()
             volumes = klines.get('volume', []).tolist() if klines.get('volume') is not None else []
             
-            print(f"获取到{len(prices)}条K线数据")
-            
-            if len(prices) == 0:
-                print(f"尝试获取日K数据...")
-                api2 = TqApi()
-                klines2 = api2.get_kline_serial(tqsdk_symbol, 86400, 30)
-                close2 = klines2.get('close')
-                vol2 = klines2.get('volume')
-                prices2 = close2.tolist() if close2 is not None else []
-                volumes2 = vol2.tolist() if vol2 is not None else []
-                api2.close()
-                return {"symbol": symbol, "prices": prices2, "volumes": volumes2, "source": "tqsdk_daily"}
-            
-            return {"symbol": symbol, "prices": prices, "volumes": volumes, "source": "tqsdk"}
-        except Exception as e:
             api.close()
+            print(f"成功获取{len(prices)}条K线数据")
+            return {"symbol": symbol, "prices": prices, "volumes": volumes, "source": "tqsdk"}
+            
+        except Exception as e:
             print(f"获取K线失败: {e}")
+            try:
+                api.close()
+            except:
+                pass
+            return None
+            
     except ImportError:
         print("天勤SDK未安装")
     except Exception as e:
