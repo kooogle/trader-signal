@@ -138,22 +138,16 @@ def get_kline_from_sina(symbol_name: str, count: int = 50) -> Optional[Dict]:
     return None
 
 def get_kline_data(symbol: str, count: int = 100) -> Dict:
-    symbol_name = symbol.split('.')[0]
-    
+    """只使用天勤数据源"""
+    # 只使用天勤
     data = get_kline_from_tqsdk(symbol, 60, count)
     if data:
         print(f"✅ 天勤数据: {symbol}")
         return data
     
-    data = get_kline_from_sina(symbol_name, count)
-    if data:
-        print(f"✅ 新浪数据: {symbol}")
-        return data
-    
-    print(f"⚠️ 模拟数据: {symbol}")
-    prices = [5000 + random.uniform(-100, 100) for _ in range(count)]
-    volumes = [random.randint(10000, 50000) for _ in range(count)]
-    return {"symbol": symbol, "prices": prices, "volumes": volumes, "source": "mock"}
+    # 天勤失败则报错退出
+    print(f"❌ 天勤数据获取失败: {symbol}")
+    exit(1)
 
 # ============== 技术指标 ==============
 
@@ -250,7 +244,10 @@ def main():
     current_state = {}
     
     for symbol in SYMBOLS:
-        code, name, key = symbol["code"], symbol["name"], get_signal_key(code)
+        code = symbol["code"]
+        name = symbol["name"]
+        key = get_signal_key(code)
+        
         print(f"\n分析: {name}")
         
         data = get_kline_data(code)
