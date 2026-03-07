@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 """
-期货信号系统 - 独立运行版
-支持天勤/新浪数据源，可部署到GitHub Actions或服务器
+期货信号系统 - 使用飞书应用发送消息
 """
 
 import json
 import os
-import time
 import urllib.request
 import urllib.parse
 import random
@@ -14,13 +12,14 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 # ============== 配置区 ==============
-# 飞书 Webhook 地址 (获取方式：群机器人 -> 自定义机器人 -> Webhook)
-FEISHU_WEBHOOK_URL = "YOUR_FEISHU_WEBHOOK_URL"
+# 飞书应用凭证 (你已经在OpenClaw配置过的)
+APP_ID = "cli_a920fdf0183a9bd1"
+APP_SECRET = "yjoGDTFVobSRRrEzLx81JhGl7NWvBrrG"
 
-# 天勤 Token (可选，不填也能用游客权限)
-TQ_TOKEN = ""
+# 接收消息的用户ID
+RECEIVER_ID = "ou_39144282ce2b237a8f95c7c9a30037bf"
 
-# 交易品种 (天勤期货合约代码)
+# 交易品种
 SYMBOLS = [
     {"code": "TA2209.CZCE", "name": "PTA", "exchange": "CZCE"},
     {"code": "OI2209.CZCE", "name": "菜籽油", "exchange": "CZCE"},
@@ -28,35 +27,55 @@ SYMBOLS = [
     {"code": "P2209.DCE", "name": "棕榈油", "exchange": "DCE"},
 ]
 
-# 状态文件
 STATE_FILE = "signal_state.json"
 
-# ============== 飞书推送 ==============
+# ============== 飞书应用API ==============
 
-def send_feishu_message(message: str) -> bool:
-    """推送到飞书"""
-    if not FEISHU_WEBHOOK_URL or FEISHU_WEBHOOK_URL == "YOUR_FEISHU_WEBHOOK_URL":
-        print("请先配置 FEISHU_WEBHOOK_URL")
-        return False
+_feishu_access_token = None
+
+def get_feishu_access_token() -> Optional[str]:
+    global _feishu_access_token
+    if _feishu_access_token:
+        return _feishu_access_token
     
-    payload = {"msg_type": "text", "content": message}
+    url = "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal"
+    payload = {"app_id": APP_ID, "app_secret": APP_SECRET}
     
     try:
         data = json.dumps(payload).encode('utf-8')
-        req = urllib.request.Request(
-            FEISHU_WEBHOOK_URL,
-            data=data,
-            headers={'Content-Type': 'application/json'}
-        )
+        req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
         with urllib.request.urlopen(req, timeout=10) as response:
             result = json.loads(response.read().decode())
             if result.get('code') == 0:
-                print("✅ 飞书推送成功")
+                _feishu_access_token = result['tenant_access_token']
+                return _feishu_access_token
+    except Exception as e:
+        print(f"获取token失败: {e}")
+    return None
+
+def send_feishu_message(open_id: str, message: str) -> bool:
+    token = get_feishu_access_token()
+    if not token:
+        return False
+    
+    url = "https://open.feishu.cn/open-apis/im/v1/messages"
+    params = {"receive_id_type": "open_id"}
+    payload = {"receive_id": open_id, "msg_type": "text", "content": json.dumps({"text": message})}
+    
+    try:
+        query_string = urllib.parse.urlencode(params)
+        full_url = f"{url}?{query_string}"
+        data = json.dumps(payload).encode('utf-8')
+        req = urllib.request.Request(full_url, data=data, headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {token}'})
+        with urllib.request.urlopen(req, timeout=10) as response:
+            result = json.loads(response.read().decode())
+            if result.get('code') == 0:
+                print("✅ 飞书消息发送成功")
                 return True
             else:
-                print(f"❌ 推送失败: {result.get('msg')}")
+                print(f"❌ 发送失败: {result.get('msg')}")
     except Exception as e:
-        print(f"❌ 推送失败: {e}")
+        print(f"❌ 发送失败: {e}")
     return False
 
 # ============== 状态管理 ==============
@@ -80,27 +99,15 @@ def get_signal_key(symbol_code: str) -> str:
 # ============== 天勤数据 ==============
 
 def get_kline_from_tqsdk(symbol: str, duration: int = 60, count: int = 100) -> Optional[Dict]:
-    """天勤数据"""
     try:
         from tqsdk import TqApi, TqAuth
-        
-        if TQ_TOKEN:
-            api = TqApi(auth=TqAuth(TQ_TOKEN, ""))
-        else:
-            api = TqApi()
-        
+        api = TqApi(auth=TqAuth("", ""))
         try:
             klines = api.get_kline_serial(symbol, duration, count)
             prices = klines['close'].tolist()
             volumes = klines['volume'].tolist()
             api.close()
-            
-            return {
-                "symbol": symbol,
-                "prices": prices,
-                "volumes": volumes,
-                "source": "tqsdk"
-            }
+            return {"symbol": symbol, "prices": prices, "volumes": volumes, "source": "tqsdk"}
         except:
             api.close()
     except ImportError:
@@ -112,11 +119,9 @@ def get_kline_from_tqsdk(symbol: str, duration: int = 60, count: int = 100) -> O
 # ============== 新浪数据 ==============
 
 def get_kline_from_sina(symbol_name: str, count: int = 50) -> Optional[Dict]:
-    """新浪数据"""
     symbol_map = {"TA2209": "TA0", "OI2209": "OI0", "V2209": "V0", "P2209": "P0"}
     sina_code = symbol_map.get(symbol_name, symbol_name[:-4] + "0")
-    
-    url = f"https://stock2.finance.sina.com.cn/futures/api/json.php/IndexService.getInnerFuturesDailyKLine"
+    url = "https://stock2.finance.sina.com.cn/futures/api/json.php/IndexService.getInnerFuturesDailyKLine"
     
     try:
         full_url = f"{url}?symbol={sina_code}"
@@ -133,22 +138,18 @@ def get_kline_from_sina(symbol_name: str, count: int = 50) -> Optional[Dict]:
     return None
 
 def get_kline_data(symbol: str, count: int = 100) -> Dict:
-    """获取K线数据"""
     symbol_name = symbol.split('.')[0]
     
-    # 优先天勤
     data = get_kline_from_tqsdk(symbol, 60, count)
     if data:
         print(f"✅ 天勤数据: {symbol}")
         return data
     
-    # 备选新浪
     data = get_kline_from_sina(symbol_name, count)
     if data:
         print(f"✅ 新浪数据: {symbol}")
         return data
     
-    # 模拟
     print(f"⚠️ 模拟数据: {symbol}")
     prices = [5000 + random.uniform(-100, 100) for _ in range(count)]
     volumes = [random.randint(10000, 50000) for _ in range(count)]
@@ -213,13 +214,10 @@ def detect_signals(prices: List[float], volumes: List[float]) -> Optional[Dict]:
     if None in [ma5_v, ma20_v, bb_m, rsi_v]:
         return None
     
-    # 多头
     if price > ma20_v and ma5_v > ma20_v and bb_m > bb["middle"][-2] and 40 < rsi_v < 70:
         return {"type": "LONG", "reason": "均线多头+布林中轨向上+RSI", "price": price}
-    # 空头
     if price < ma20_v and ma5_v < ma20_v and bb_m < bb["middle"][-2] and 30 < rsi_v < 60:
         return {"type": "SHORT", "reason": "均线空头+布林中轨向下+RSI", "price": price}
-    # 突破
     if bb["upper"][-1] and price > bb["upper"][-1] and volumes[-1] > volumes[-2] * 1.5:
         return {"type": "LONG", "reason": "突破布林上轨+放量", "price": price}
     if bb["lower"][-1] and price < bb["lower"][-1] and volumes[-1] > volumes[-2] * 1.5:
@@ -228,6 +226,20 @@ def detect_signals(prices: List[float], volumes: List[float]) -> Optional[Dict]:
     return None
 
 # ============== 主程序 ==============
+
+def send_signal(symbol: Dict, signal: Dict):
+    emoji = "🔴" if signal["type"] == "LONG" else "🟢"
+    direction = "做多" if signal["type"] == "LONG" else "做空"
+    
+    message = f"""【期货信号】
+
+{emoji} {symbol['name']} {direction}
+
+原因: {signal['reason']}
+价格: {signal['price']}
+时间: {datetime.now().strftime('%Y-%m-%d %H:%M')}"""
+    
+    send_feishu_message(RECEIVER_ID, message)
 
 def main():
     print("="*50)
@@ -238,10 +250,7 @@ def main():
     current_state = {}
     
     for symbol in SYMBOLS:
-        code = symbol["code"]
-        name = symbol["name"]
-        key = get_signal_key(code)
-        
+        code, name, key = symbol["code"], symbol["name"], get_signal_key(code)
         print(f"\n分析: {name}")
         
         data = get_kline_data(code)
@@ -251,17 +260,8 @@ def main():
         previous = prev_state.get(key, "NONE")
         
         if signal and current != previous:
-            emoji = "🔴" if current == "LONG" else "🟢"
-            direction = "做多" if current == "LONG" else "做空"
-            
-            msg = f"""【期货信号】{emoji} {name} {direction}
-
-原因: {signal['reason']}
-价格: {signal['price']}
-时间: {datetime.now().strftime('%Y-%m-%d %H:%M')}"""
-            
             print(f"📢 新信号: {current}")
-            send_feishu_message(msg)
+            send_signal(symbol, signal)
         elif signal:
             print(f"📊 保持: {current}")
         else:
