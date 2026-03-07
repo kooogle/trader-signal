@@ -148,13 +148,13 @@ def get_kline_from_tqsdk(symbol: str, duration: int = 300, count: int = 100) -> 
         try:
             if TQ_ACCOUNT and TQ_PASSWORD:
                 print(f"使用账号登录: {TQ_ACCOUNT}")
-                api = TqApi(auth=TqAuth(TQ_ACCOUNT, TQ_PASSWORD), timeout=30)
+                api = TqApi(auth=TqAuth(TQ_ACCOUNT, TQ_PASSWORD))
             else:
-                api = TqApi(timeout=30)
+                api = TqApi()
         except Exception as auth_error:
             print(f"账号登录失败: {auth_error}")
             try:
-                api = TqApi(timeout=30)
+                api = TqApi()
             except Exception as e:
                 print(f"游客登录也失败: {e}")
                 return None
@@ -172,7 +172,7 @@ def get_kline_from_tqsdk(symbol: str, duration: int = 300, count: int = 100) -> 
                 api.close()
                 # 尝试日K
                 try:
-                    api2 = TqApi(timeout=30)
+                    api2 = TqApi()
                     klines2 = api2.get_kline_serial(tqsdk_symbol, 86400, 30)
                     close2 = klines2.get('close')
                     vol2 = klines2.get('volume')
