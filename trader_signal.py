@@ -130,21 +130,18 @@ def get_kline_from_tqsdk(symbol: str, duration: int = 300, count: int = 100) -> 
 # ============== 天勤数据 ==============
 
 def get_kline_data(symbol: str, count: int = 100) -> Dict:
-    """获取K线数据"""
+    """获取K线数据 - 只使用天勤"""
     symbol_name = symbol.split('.')[0]
     
-    # 优先天勤
+    # 只使用天勤
     data = get_kline_from_tqsdk(symbol, 300, count)  # 5分钟 = 300秒
     if data:
         print(f"✅ 天勤数据: {symbol}")
         return data
     
-    
-    # 模拟
-    print(f"⚠️ 模拟数据: {symbol}")
-    prices = [5000 + random.uniform(-100, 100) for _ in range(count)]
-    volumes = [random.randint(10000, 50000) for _ in range(count)]
-    return {"symbol": symbol, "prices": prices, "volumes": volumes, "source": "mock"}
+    # 天勤失败则报错退出
+    print(f"❌ 天勤数据获取失败: {symbol}")
+    exit(1)
 
 # ============== 技术指标 ==============
 
