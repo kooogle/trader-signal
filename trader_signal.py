@@ -207,14 +207,15 @@ def get_kline_from_tqsdk(symbol: str, duration: int = 300, count: int = 100) -> 
     return None
 
 def get_kline_data(symbol: str, count: int = 100) -> Dict:
-    """获取K线数据"""
+    """获取K线数据 - 失败返回空数据"""
     data = get_kline_from_tqsdk(symbol, 300, count)
     if data:
         print(f"✅ 天勤数据: {symbol}")
         return data
     
-    print(f"❌ 天勤数据获取失败: {symbol}")
-    exit(1)
+    print(f"⚠️ 天勤数据获取失败: {symbol}")
+    # 返回空数据，不退出
+    return {"symbol": symbol, "prices": [], "volumes": [], "source": "failed"}
 
 # ============== 技术指标 ==============
 def calculate_ma(data: List[float], period: int) -> List[float]:
@@ -281,7 +282,9 @@ def calculate_atr(prices: List[float], period: int = 14) -> List[float]:
 
 # ============== 信号检测 ==============
 def detect_signals(prices: List[float], volumes: List[float]) -> Optional[Dict]:
-    if len(prices) < 30:
+    if not prices or len(prices) < 30:
+        print(f"数据不足，跳过信号检测")
+        return None
         return None
     
     ma5 = calculate_ma(prices, 5)
