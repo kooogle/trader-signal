@@ -21,10 +21,10 @@ RECEIVER_ID = "ou_39144282ce2b237a8f95c7c9a30037bf"
 
 # 交易品种
 SYMBOLS = [
-    {"code": "TA2209.CZCE", "name": "PTA", "exchange": "CZCE"},
-    {"code": "OI2209.CZCE", "name": "菜籽油", "exchange": "CZCE"},
-    {"code": "V2209.CZCE", "name": "PVC", "exchange": "CZCE"},
-    {"code": "P2209.DCE", "name": "棕榈油", "exchange": "DCE"},
+    {"code": "TA2605.CZCE", "name": "PTA", "exchange": "CZCE"},
+    {"code": "OI2605.CZCE", "name": "菜籽油", "exchange": "CZCE"},
+    {"code": "V2605.CZCE", "name": "PVC", "exchange": "CZCE"},
+    {"code": "P2605.DCE", "name": "棕榈油", "exchange": "DCE"},
 ]
 
 STATE_FILE = "signal_state.json"
@@ -99,6 +99,7 @@ def get_signal_key(symbol_code: str) -> str:
 # ============== 天勤数据 ==============
 
 def get_kline_from_tqsdk(symbol: str, duration: int = 60, count: int = 100) -> Optional[Dict]:
+    """天勤数据"""
     try:
         from tqsdk import TqApi, TqAuth
         api = TqApi(auth=TqAuth("", ""))
