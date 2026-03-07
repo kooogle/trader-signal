@@ -1,0 +1,40 @@
+{
+  "name": "期货信号检查",
+  "on": {
+    "schedule": [
+      {
+        "cron": "*/1 * * * *"
+      }
+    ],
+    "workflow_dispatch": {}
+  },
+  "jobs": {
+    "trade-signal": {
+      "runs-on": "ubuntu-latest",
+      "steps": [
+        {
+          "name": "Checkout",
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "name": "Setup Python",
+          "uses": "actions/setup-python@v5",
+          "with": {
+            "python-version": "3.11"
+          }
+        },
+        {
+          "name": "Install dependencies",
+          "run": "pip install tqsdk requests"
+        },
+        {
+          "name": "Run signal check",
+          "env": {
+            "FEISHU_WEBHOOK_URL": "${{ secrets.FEISHU_WEBHOOK_URL }}"
+          },
+          "run": "python trader_signal.py"
+        }
+      ]
+    }
+  }
+}
