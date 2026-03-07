@@ -194,29 +194,123 @@ def calculate_rsi(data: List[float], period: int = 14) -> List[float]:
             result.append(round(rsi, 2))
     return result
 
-# ============== 信号检测 ==============
+# ============== 信号检测 (优化版) ==============
+
+def calculate_atr(prices: List[float], period: int = 14) -> List[float]:
+    """计算ATR（平均真实波幅）"""
+    if len(prices) < period + 1:
+        return [None] * len(prices)
+    
+    tr = []
+    for i in range(1, len(prices)):
+        high = prices[i]
+        low = prices[i-1]
+        prev_close = prices[i-1]
+        
+        h_l = high - low
+        h_c = abs(high - prev_close)
+        l_c = abs(low - prev_close)
+        
+        tr.append(max(h_l, h_c, l_c))
+    
+    atr = []
+    for i in range(len(tr)):
+        if i < period - 1:
+            atr.append(None)
+        else:
+            avg = sum(tr[i-period+1:i+1]) / period
+            atr.append(round(avg, 2))
+    
+    return atr
 
 def detect_signals(prices: List[float], volumes: List[float]) -> Optional[Dict]:
-    if len(prices) < 25:
+    """优化的信号检测"""
+    if len(prices) < 30:
         return None
     
-    ma5, ma20 = calculate_ma(prices, 5), calculate_ma(prices, 20)
+    # 计算所有指标
+    ma5 = calculate_ma(prices, 5)
+    ma20 = calculate_ma(prices, 20)
+    ma60 = calculate_ma(prices, 60)  # 新增60日均线判断趋势
     bb = calculate_bollinger(prices)
     rsi = calculate_rsi(prices)
+    atr = calculate_atr(prices)  # 新增ATR
     
-    price, ma5_v, ma20_v, bb_m, rsi_v = prices[-1], ma5[-1], ma20[-1], bb["middle"][-1], rsi[-1]
+    price = prices[-1]
+    ma5_v, ma20_v, ma60_v = ma5[-1], ma20[-1], ma60[-1] if len(ma60) > 0 and ma60[-1] else None
+    bb_m = bb["middle"][-1]
+    rsi_v = rsi[-1]
+    atr_v = atr[-1] if atr and atr[-1] else 0
     
     if None in [ma5_v, ma20_v, bb_m, rsi_v]:
         return None
     
-    if price > ma20_v and ma5_v > ma20_v and bb_m > bb["middle"][-2] and 40 < rsi_v < 70:
-        return {"type": "LONG", "reason": "均线多头+布林中轨向上+RSI", "price": price}
-    if price < ma20_v and ma5_v < ma20_v and bb_m < bb["middle"][-2] and 30 < rsi_v < 60:
-        return {"type": "SHORT", "reason": "均线空头+布林中轨向下+RSI", "price": price}
-    if bb["upper"][-1] and price > bb["upper"][-1] and volumes[-1] > volumes[-2] * 1.5:
-        return {"type": "LONG", "reason": "突破布林上轨+放量", "price": price}
-    if bb["lower"][-1] and price < bb["lower"][-1] and volumes[-1] > volumes[-2] * 1.5:
-        return {"type": "SHORT", "reason": "跌破布林下轨+放量", "price": price}
+    # ====== 做多信号 ======
+    # 条件1: 均线多头 + 布林中轨向上 + RSI在合理区间
+    long_cond1 = (price > ma20_v and ma5_v > ma20_v and 
+                   bb_m > bb["middle"][-2] and 
+                   35 < rsi_v < 75)
+    
+    # 条件2: 突破布林上轨 + 明显放量 + ATR过滤假突破
+    long_cond2 = (bb["upper"][-1] and price > bb["upper"][-1] and 
+                  volumes[-1] > volumes[-2] * 1.3 and
+                  (price - bb["upper"][-1]) > atr_v * 0.3)  # 突破幅度>0.3倍ATR
+    
+    # 条件3: 底背离 + RSI超卖
+    price_recent_low = min(prices[-10:-1])
+    valid_rsi = [r for r in rsi[-10:-1] if r]
+    if valid_rsi:
+        rsi_low = min(valid_rsi)
+        long_cond3 = (price < price_recent_low * 1.01 and 
+                      rsi_v < 35 and 
+                      rsi_v < rsi_low * 0.95)
+    else:
+        long_cond3 = False
+    
+    # 综合判断做多：满足条件1或(条件2+ATR过滤)
+    if long_cond1 or long_cond2 or long_cond3:
+        reason = ""
+        if long_cond1:
+            reason = "均线多头+布林中轨向上+RSI"
+        elif long_cond2:
+            reason = f"突破布林上轨+放量(ATR:{atr_v})"
+        elif long_cond3:
+            reason = "底背离+RSI超卖"
+        
+        return {"type": "LONG", "reason": reason, "price": price}
+    
+    # ====== 做空信号 ======
+    # 条件1: 均线空头 + 布林中轨向下 + RSI在合理区间
+    short_cond1 = (price < ma20_v and ma5_v < ma20_v and 
+                   bb_m < bb["middle"][-2] and 
+                   25 < rsi_v < 65)
+    
+    # 条件2: 跌破布林下轨 + 明显放量 + ATR过滤假突破
+    short_cond2 = (bb["lower"][-1] and price < bb["lower"][-1] and 
+                   volumes[-1] > volumes[-2] * 1.3 and
+                   (bb["lower"][-1] - price) > atr_v * 0.3)
+    
+    # 条件3: 顶背离 + RSI超买
+    price_recent_high = max(prices[-10:-1])
+    if valid_rsi:
+        rsi_high = max(valid_rsi)
+        short_cond3 = (price > price_recent_high * 0.99 and 
+                       rsi_v > 65 and 
+                       rsi_v > rsi_high * 1.05)
+    else:
+        short_cond3 = False
+    
+    # 综合判断做空
+    if short_cond1 or short_cond2 or short_cond3:
+        reason = ""
+        if short_cond1:
+            reason = "均线空头+布林中轨向下+RSI"
+        elif short_cond2:
+            reason = f"跌破布林下轨+放量(ATR:{atr_v})"
+        elif short_cond3:
+            reason = "顶背离+RSI超买"
+        
+        return {"type": "SHORT", "reason": reason, "price": price}
     
     return None
 
