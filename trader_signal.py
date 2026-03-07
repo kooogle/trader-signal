@@ -131,12 +131,12 @@ def get_kline_from_tqsdk(symbol: str, duration: int = 60, count: int = 100) -> O
 
 def get_kline_from_sina(symbol_name: str, count: int = 50) -> Optional[Dict]:
     """新浪数据"""
-    # 新浪期货合约代码映射 (2605 = 当月主力合约)
+    # 新浪期货合约代码 - 使用具体合约代码
     symbol_map = {
-        "TA2605": "TA0",   # PTA主力合约
-        "OI2605": "OI0",  # 菜籽油主力合约
-        "V2605": "V0",    # PVC主力合约
-        "P2605": "P0"     # 棕榈油主力合约
+        "TA2605": "TA605",   # PTA2605
+        "OI2605": "OI605",  # 菜籽油2605
+        "V2605": "V605",    # PVC2605
+        "P2605": "P605"     # 棕榈油2605
     }
     sina_code = symbol_map.get(symbol_name, symbol_name)
     
