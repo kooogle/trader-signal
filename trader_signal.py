@@ -9,7 +9,7 @@ import sys
 import urllib.request
 import urllib.parse
 import random
-from datetime import datetime
+from datetime import datetime, time
 from typing import Dict, List, Optional
 
 # ============== 配置区 ==============
@@ -79,6 +79,33 @@ def send_feishu_message(open_id: str, message: str) -> bool:
                 print(f"❌ 发送失败: {result.get('msg')}")
     except Exception as e:
         print(f"❌ 发送失败: {e}")
+    return False
+
+# ============== 交易时间检查 ==============
+def is_trading_time() -> bool:
+    """检查当前是否在期货交易时间内"""
+    now = datetime.now()
+    weekday = now.weekday()  # 0=周一, 5=周六, 6=周日
+    
+    # 周末不交易
+    if weekday >= 5:
+        return False
+    
+    current_time = now.time()
+    
+    # 早盘: 9:00-10:15
+    if time(9, 0) <= current_time <= time(10, 15):
+        return True
+    # 上午: 10:30-11:30
+    if time(10, 30) <= current_time <= time(11, 30):
+        return True
+    # 午盘: 13:30-15:00
+    if time(13, 30) <= current_time <= time(15, 0):
+        return True
+    # 夜盘: 21:00-02:30
+    if current_time >= time(21, 0) or current_time <= time(2, 30):
+        return True
+    
     return False
 
 # ============== 状态管理 ==============
@@ -343,6 +370,11 @@ def main():
     print("="*50)
     print("期货信号系统")
     print("="*50)
+    
+    # 检查交易时间
+    if not is_trading_time():
+        print("⏰ 非交易时间，跳过")
+        return
     
     prev_state = load_state()
     current_state = {}
